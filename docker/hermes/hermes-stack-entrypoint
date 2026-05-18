@@ -1,8 +1,10 @@
 #!/bin/sh
 set -eu
 
-mkdir -p /opt/data/plugins /opt/data/logs/memory_tencentdb /opt/data/tdai-memory
+mkdir -p /opt/data/plugins /opt/data/logs/memory_tencentdb /opt/data/tdai-memory /opt/hermes/plugins/memory
 rm -rf /opt/data/plugins/memory_tencentdb
+rm -rf /opt/hermes/plugins/memory/memory_tencentdb
 ln -s /opt/tdai-memory-openclaw-plugin/node_modules/@tencentdb-agent-memory/memory-tencentdb/hermes-plugin/memory/memory_tencentdb /opt/data/plugins/memory_tencentdb
+ln -s /opt/tdai-memory-openclaw-plugin/node_modules/@tencentdb-agent-memory/memory-tencentdb/hermes-plugin/memory/memory_tencentdb /opt/hermes/plugins/memory/memory_tencentdb
 
 exec /opt/hermes/docker/entrypoint.sh gateway run

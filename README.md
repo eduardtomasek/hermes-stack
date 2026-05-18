@@ -19,8 +19,45 @@ Stack je navržený pro vzdálené používání přes `Hermes Desktop` proti HT
 - `memory_tencentdb` gateway:
   - nespouští se jako separátní compose service
   - provider ho startuje uvnitř `hermes` kontejneru přes `MEMORY_TENCENTDB_GATEWAY_CMD`
+  - startuje se lazy až při první skutečné memory operaci nebo prvním requestu, který memory použije
   - health endpoint je na `127.0.0.1:8420/health`
   - data ukládá do `./hermes/tdai-memory`
+
+## Architektura řešení
+
+```text
+client / Hermes Desktop / curl
+            |
+            v
+reverse proxy (volitelné TLS)
+            |
+            v
+Hermes API + Gateway
+127.0.0.1:8642
+            |
+            +--> HERMES_HOME=/opt/data
+            |    - config.yaml
+            |    - SOUL.md
+            |    - skills/
+            |    - plugins/
+            |    - tdai-memory/
+            |
+            +--> memory provider: memory_tencentdb
+                    |
+                    +--> lazy supervisor start
+                    |
+                    +--> internal gateway
+                         127.0.0.1:8420
+```
+
+Runtime tok:
+
+1. Docker spustí vlastní wrapper entrypoint `hermes-stack-entrypoint`.
+2. Wrapper vytvoří symlinky na `memory_tencentdb` plugin do `/opt/data/plugins/...` a `/opt/hermes/plugins/memory/...`.
+3. Wrapper předá řízení upstream `/opt/hermes/docker/entrypoint.sh gateway run`.
+4. Hermes naběhne na `8642`.
+5. `memory_tencentdb` se nespouští eager při bootu. Naběhne až když Hermes zpracuje request, který memory provider inicializuje.
+6. Po prvním memory-aware requestu začne odpovídat i `127.0.0.1:8420/health`.
 
 ## Struktura
 
@@ -30,7 +67,8 @@ Stack je navržený pro vzdálené používání přes `Hermes Desktop` proti HT
 ├── docker-compose.yml
 ├── docker/
 │   └── hermes/
-│       └── Dockerfile
+│       ├── Dockerfile
+│       └── hermes-stack-entrypoint
 ├── hermes/
 │   └── config.yaml.example
 └── templates/
@@ -150,6 +188,25 @@ docker compose up -d --build
 docker compose logs -f hermes
 ```
 
+### 8. Udělej první warmup request
+
+`memory_tencentdb` se spouští lazy. Samotný start kontejneru nestačí k tomu, aby už běžel proces na `8420`.
+
+```bash
+export API_SERVER_KEY='sem-vloz-stejny-klic-z-.env'
+curl -sS http://127.0.0.1:8642/v1/chat/completions \
+  -H "Authorization: Bearer $API_SERVER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "deepseek/deepseek-v3.2",
+    "messages": [
+      {"role":"user","content":"Say only ok."}
+    ]
+  }'
+```
+
+Po tomhle requestu už obvykle běží i interní Tencent gateway na `8420`.
+
 ## Ověření
 
 ### Hermes health
@@ -157,6 +214,8 @@ docker compose logs -f hermes
 ```bash
 curl http://127.0.0.1:8642/health
 ```
+
+Tohle je hlavní healthcheck pro Docker i operativní monitoring.
 
 ### Hermes autorizace
 
@@ -171,6 +230,12 @@ curl -H "Authorization: Bearer $API_SERVER_KEY" \
 ```bash
 curl http://127.0.0.1:8420/health
 ```
+
+Důležité:
+
+- `8420` není vhodný jako cold-start healthcheck kontejneru
+- při čerstvém startu může vracet `connection refused`, i když je stack v pořádku
+- použij ho až po prvním requestu, který aktivuje memory provider
 
 ## Přístup zvenku přes Hermes Desktop
 
@@ -256,6 +321,8 @@ Pro vlastní Hermes pluginy používej:
 
 `memory_tencentdb` provider se vytváří při startu automaticky jako symlink do `./hermes/plugins/memory_tencentdb`, takže tenhle adresář neupravuj ručně.
 
+Kvůli aktuálnímu chování upstream Hermes se stejný plugin při startu linkuje i do interní cesty `/opt/hermes/plugins/memory/memory_tencentdb`, aby ho provider discovery spolehlivě našel.
+
 ## Aktualizace
 
 Po update stacku:
@@ -279,16 +346,51 @@ Zkontroluj:
 - provider API key pro hlavní Hermes model je nastavený v `.env` (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, atd.)
 - `MEMORY_TENCENTDB_LLM_API_KEY` je nastavený v `.env`
 - `docker compose logs hermes`
-- `curl http://127.0.0.1:8420/health`
+- proběhl aspoň jeden request na `8642`, který memory provider aktivuje
+- teprve potom `curl http://127.0.0.1:8420/health`
 
 ### Gateway nenaběhne
 
 Provider startuje gateway přímo uvnitř `hermes` kontejneru. Kritické věci jsou:
 
 - Node runtime v image
-- dostupný `pnpm`
+- dostupný `tsx` v `./node_modules/.bin/tsx`
 - platný `MEMORY_TENCENTDB_GATEWAY_CMD`
 - zapisovatelný `./hermes/tdai-memory`
+- korektní symlink pluginu do `/opt/hermes/plugins/memory/memory_tencentdb`
+
+### `8420/health` vrací `connection refused` hned po startu
+
+To je očekávané chování, pokud ještě neproběhl první memory-aware request.
+
+Postup:
+
+1. ověř `curl http://127.0.0.1:8642/health`
+2. pošli první request na `POST /v1/chat/completions`
+3. teprve potom testuj `curl http://127.0.0.1:8420/health`
+
+### Proč ten stack nepoužívá `pnpm exec tsx`
+
+Balíček `@tencentdb-agent-memory/memory-tencentdb` se v image instaluje přes `npm`.
+
+Při runtime se ukázalo, že `pnpm exec tsx ...` se pokoušel přeuspořádat `node_modules` a končil na `ERR_PNPM_IGNORED_BUILDS`.
+
+Proto stack spouští gateway přímo přes:
+
+```bash
+./node_modules/.bin/tsx node_modules/@tencentdb-agent-memory/memory-tencentdb/src/gateway/server.ts
+```
+
+Tohle bylo ověřené jako funkční.
+
+### Jak opravdu poznat, že memory funguje
+
+Nejspolehlivější test není samotný health endpoint, ale round-trip přes Hermes API:
+
+1. pošli request typu "Remember that my favorite editor is Helix"
+2. pošli druhý request "What is my favorite editor?"
+3. pokud odpoví `Helix`, funguje celý chain:
+   Hermes API -> memory provider -> Tencent gateway -> persistent storage
 
 ### Chci úplně čistý rebuild
 
