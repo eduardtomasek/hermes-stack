@@ -6,9 +6,10 @@ services:
     container_name: hermes
     restart: unless-stopped
     user: "${HERMES_UID}:${HERMES_GID}"
-    command:
+    entrypoint:
       - /bin/sh
       - -lc
+    command:
       - |
         mkdir -p /opt/data/plugins /opt/data/logs/memory_tencentdb /opt/data/tdai-memory
         rm -rf /opt/data/plugins/memory_tencentdb
