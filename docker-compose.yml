@@ -14,7 +14,7 @@ services:
       API_SERVER_HOST: "0.0.0.0"
       API_SERVER_PORT: "8642"
       HERMES_HOME: "/opt/data"
-      MEMORY_TENCENTDB_GATEWAY_CMD: "sh -c 'cd /opt/tdai-memory-openclaw-plugin && exec pnpm exec tsx node_modules/@tencentdb-agent-memory/memory-tencentdb/src/gateway/server.ts'"
+      MEMORY_TENCENTDB_GATEWAY_CMD: "sh -c 'cd /opt/tdai-memory-openclaw-plugin && exec ./node_modules/.bin/tsx node_modules/@tencentdb-agent-memory/memory-tencentdb/src/gateway/server.ts'"
       MEMORY_TENCENTDB_GATEWAY_HOST: "127.0.0.1"
       MEMORY_TENCENTDB_GATEWAY_PORT: "8420"
       MEMORY_TENCENTDB_LOG_DIR: "/opt/data/logs/memory_tencentdb"
