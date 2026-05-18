@@ -89,6 +89,26 @@ mkdir -p /opt/hermes
 cd /opt/hermes
 ```
 
+Na většině Linux serverů bude `/opt` zapisovatelný jen pro `root`. Praktický postup je:
+
+```bash
+sudo mkdir -p /opt/hermes
+sudo chown -R "$USER":"$USER" /opt/hermes
+cd /opt/hermes
+```
+
+Tím zajistíš, že:
+
+- repozitář můžeš spravovat jako běžný uživatel
+- `.env`, `hermes/`, `templates/` a další soubory nemusíš editovat přes `root`
+- Docker bude do bind mountu zapisovat s očekávaným ownershipem
+
+Pokud už adresář existuje a omylem ho vlastní `root`, oprav to:
+
+```bash
+sudo chown -R "$USER":"$USER" /opt/hermes
+```
+
 ### 2. Zkopíruj obsah tohoto repozitáře
 
 Do `/opt/hermes` dej:
@@ -130,6 +150,17 @@ Poznámky:
 - `Hermes` model a `Tencent memory` model jsou oddělené konfigurace. Můžou mířit na stejný provider, ale nemusí.
 - `API_SERVER_CORS_ORIGINS` je důležité hlavně pro browserové UI; pro `Hermes Desktop` typicky není potřeba.
 - `TELEGRAM_ALLOWED_USERS` má být seznam číselných Telegram user ID oddělených čárkou, ne username.
+- `HERMES_UID` a `HERMES_GID` mají odpovídat uživateli, který vlastní `/opt/hermes` na hostiteli. Ověříš je přes `id -u` a `id -g`.
+
+Rychlé ověření:
+
+```bash
+id -u
+id -g
+ls -ld /opt/hermes
+```
+
+Pokud ownership nesedí, můžeš pak v bind mountu skončit se soubory, které vytvořil `root`, a další úpravy budou zbytečně nepříjemné.
 
 ### 4. Aktivuj `memory_tencentdb` v Hermes configu
 
