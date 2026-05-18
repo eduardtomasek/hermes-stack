@@ -210,6 +210,13 @@ Pro custom/local endpoint uvnitř Dockeru obvykle použij `host.docker.internal`
 cp templates/SOUL.md.example hermes/SOUL.md
 ```
 
+Důležité:
+
+- v tomhle stacku je aktivní persona soubor `./hermes/SOUL.md`
+- uvnitř kontejneru je to `/opt/data/SOUL.md`, protože `HERMES_HOME=/opt/data`
+- soubor `/opt/hermes/docker/SOUL.md` patří upstream image a je jen interní fallback / šablona
+- pokud upravíš `/opt/hermes/docker/SOUL.md`, po rebuildu image o změny snadno přijdeš a navíc to není správné místo pro persistentní konfiguraci
+
 ### 6. Spusť stack
 
 ```bash
@@ -402,6 +409,45 @@ Uvnitř kontejneru je to:
 ```text
 /opt/data/SOUL.md
 ```
+
+### Priorita a precedence
+
+V tomhle stacku ber jako jediný zdroj pravdy:
+
+```text
+./hermes/SOUL.md
+```
+
+Uvnitř kontejneru odpovídá:
+
+```text
+/opt/data/SOUL.md
+```
+
+Další soubory, které můžeš v kontejneru najít, nejsou určeny pro běžné nastavování persony:
+
+- `/opt/hermes/docker/SOUL.md`:
+  interní součást upstream image, fallback/template
+- jiné `SOUL.md` nalezené přes `find / ...`:
+  mohou patřit image, testům nebo cizím mountům, ale nejsou primární runtime persona pro tenhle stack
+
+Praktické pravidlo:
+
+- edituj pouze `./hermes/SOUL.md` na hostiteli
+- neřeš `/opt/hermes/docker/SOUL.md`
+- po změně persony obvykle stačí nový request; při pochybnostech udělej `docker compose restart hermes`
+
+Rychlé ověření uvnitř kontejneru:
+
+```bash
+docker exec hermes sh -lc 'echo "$HERMES_HOME" && ls -l /opt/data/SOUL.md /opt/hermes/docker/SOUL.md'
+```
+
+To by mělo ukázat:
+
+- `HERMES_HOME=/opt/data`
+- tvoji persistentní personu v `/opt/data/SOUL.md`
+- upstream fallback v `/opt/hermes/docker/SOUL.md`
 
 ## Jak přidávat skills
 

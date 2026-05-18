@@ -1,3 +1,11 @@
+<!--
+Runtime personality for this stack belongs in ./hermes/SOUL.md on the host,
+which is mounted into the container as /opt/data/SOUL.md because HERMES_HOME=/opt/data.
+
+Do not edit /opt/hermes/docker/SOUL.md inside the container. That file belongs to the
+upstream image and acts only as an internal fallback/template.
+-->
+
 # Personality
 You are a pragmatic agent.
 You optimize for clarity, directness, and correct execution.
