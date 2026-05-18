@@ -114,6 +114,8 @@ API_SERVER_KEY=sem_vloz_vygenerovany_klic
 API_SERVER_CORS_ORIGINS=https://hermes.example.com
 HERMES_UID=1000
 HERMES_GID=1000
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+TELEGRAM_ALLOWED_USERS=123456789
 OPENROUTER_API_KEY=sem_vloz_openrouter_api_klic
 MEMORY_TENCENTDB_LLM_API_KEY=sem_vloz_llm_api_klic
 MEMORY_TENCENTDB_LLM_BASE_URL=https://openrouter.ai/api/v1
@@ -127,6 +129,7 @@ Poznámky:
 - `MEMORY_TENCENTDB_LLM_BASE_URL` může být libovolný OpenAI-compatible endpoint.
 - `Hermes` model a `Tencent memory` model jsou oddělené konfigurace. Můžou mířit na stejný provider, ale nemusí.
 - `API_SERVER_CORS_ORIGINS` je důležité hlavně pro browserové UI; pro `Hermes Desktop` typicky není potřeba.
+- `TELEGRAM_ALLOWED_USERS` má být seznam číselných Telegram user ID oddělených čárkou, ne username.
 
 ### 4. Aktivuj `memory_tencentdb` v Hermes configu
 
@@ -206,6 +209,87 @@ curl -sS http://127.0.0.1:8642/v1/chat/completions \
 ```
 
 Po tomhle requestu už obvykle běží i interní Tencent gateway na `8420`.
+
+## Jak zprovoznit Telegram
+
+Stack už běží s `gateway run`, takže pro Telegram není potřeba další compose service.
+
+### 1. Vytvoř Telegram bota
+
+V Telegramu napiš `@BotFather`, použij `/newbot` a ulož si token.
+
+Výsledek vypadá zhruba takto:
+
+```text
+123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+```
+
+### 2. Zjisti svoje Telegram user ID
+
+Použij třeba `@userinfobot` nebo `@get_id_bot`.
+
+Potřebuješ číselné ID, například:
+
+```text
+123456789
+```
+
+### 3. Doplň `.env`
+
+```env
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxYZ
+TELEGRAM_ALLOWED_USERS=123456789
+```
+
+Pro víc lidí:
+
+```env
+TELEGRAM_ALLOWED_USERS=123456789,987654321
+```
+
+Volitelně můžeš nastavit i cílový chat pro cron výstupy:
+
+```env
+TELEGRAM_HOME_CHANNEL=-1001234567890
+TELEGRAM_HOME_CHANNEL_NAME=My Notes
+```
+
+### 4. Restartuj stack
+
+```bash
+docker compose up -d
+docker compose logs -f hermes
+```
+
+### 5. Napiš botovi
+
+Pošli botovi v Telegramu zprávu typu:
+
+```text
+hello
+```
+
+Pokud chceš, aby cron nebo proactive zprávy chodily do konkrétního chatu, pošli do toho chatu `/sethome`.
+
+### Polling vs webhook
+
+Default je long polling. To je nejjednodušší varianta pro VPS nebo domácí server.
+
+Pokud chceš webhook režim, přidej:
+
+```env
+TELEGRAM_WEBHOOK_URL=https://hermes.example.com/telegram
+```
+
+Webhook dává smysl hlavně na platformách, kde se instance uspává a probouzí přes příchozí HTTP provoz.
+
+### Ověření
+
+Když je Telegram správně nastavený:
+
+- warning o chybějícím allowlistu zmizí
+- bot odpoví na zprávu v Telegramu
+- v logu uvidíš příchozí turny gatewaye
 
 ## Ověření
 
