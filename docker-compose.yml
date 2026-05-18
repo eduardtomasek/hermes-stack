@@ -1,0 +1,42 @@
+services:
+  hermes:
+    build:
+      context: .
+      dockerfile: docker/hermes/Dockerfile
+    container_name: hermes
+    restart: unless-stopped
+    user: "${HERMES_UID}:${HERMES_GID}"
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        mkdir -p /opt/data/plugins /opt/data/logs/memory_tencentdb /opt/data/tdai-memory
+        rm -rf /opt/data/plugins/memory_tencentdb
+        ln -s /opt/tdai-memory-openclaw-plugin/node_modules/@tencentdb-agent-memory/memory-tencentdb/hermes-plugin/memory/memory_tencentdb /opt/data/plugins/memory_tencentdb
+        exec gateway run
+    env_file:
+      - .env
+    environment:
+      API_SERVER_ENABLED: "true"
+      API_SERVER_HOST: "0.0.0.0"
+      API_SERVER_PORT: "8642"
+      HERMES_HOME: "/opt/data"
+      MEMORY_TENCENTDB_GATEWAY_CMD: "sh -c 'cd /opt/tdai-memory-openclaw-plugin && exec pnpm exec tsx node_modules/@tencentdb-agent-memory/memory-tencentdb/src/gateway/server.ts'"
+      MEMORY_TENCENTDB_GATEWAY_HOST: "127.0.0.1"
+      MEMORY_TENCENTDB_GATEWAY_PORT: "8420"
+      MEMORY_TENCENTDB_LOG_DIR: "/opt/data/logs/memory_tencentdb"
+      TDAI_DATA_DIR: "/opt/data/tdai-memory"
+      MEMORY_TENCENTDB_LLM_API_KEY: "${MEMORY_TENCENTDB_LLM_API_KEY}"
+      MEMORY_TENCENTDB_LLM_BASE_URL: "${MEMORY_TENCENTDB_LLM_BASE_URL:-https://api.openai.com/v1}"
+      MEMORY_TENCENTDB_LLM_MODEL: "${MEMORY_TENCENTDB_LLM_MODEL:-gpt-4o}"
+    volumes:
+      - ./hermes:/opt/data
+    ports:
+      - "127.0.0.1:8642:8642"
+      - "127.0.0.1:8420:8420"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8420/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s

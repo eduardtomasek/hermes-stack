@@ -1,0 +1,21 @@
+memory:
+  provider: memory_tencentdb
+
+model:
+  provider: openrouter
+  default: openai/gpt-4o-mini
+  # Other common options:
+  # provider: openai
+  # default: gpt-4o-mini
+  #
+  # provider: custom
+  # default: qwen2.5-coder:14b
+  # base_url: http://host.docker.internal:11434/v1
+  # api_key: ollama
+
+skills:
+  # Optional read-only directories scanned in addition to /opt/data/skills.
+  external_dirs:
+    - /opt/data/external-skills
+
+# Add other Hermes settings here after first boot if needed.
