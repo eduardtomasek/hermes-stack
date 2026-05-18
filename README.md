@@ -449,6 +449,65 @@ To by mělo ukázat:
 - tvoji persistentní personu v `/opt/data/SOUL.md`
 - upstream fallback v `/opt/hermes/docker/SOUL.md`
 
+### Když to vypadá, že agent "četl jiný SOUL.md"
+
+To, že agent během práce najde nebo otevře víc souborů `SOUL.md`, ještě neznamená, že je všechny používá jako aktivní personu.
+
+Typický zdroj zmatku:
+
+- agent použije search/read nástroje a najde i `/opt/hermes/docker/SOUL.md`
+- pak o něm začne mluvit, protože ho vidí v souborovém systému
+- ale skutečná runtime persona se podle upstream chování stále bere z `HERMES_HOME/SOUL.md`, tedy v tomhle stacku z `/opt/data/SOUL.md`
+
+Praktický rozdíl:
+
+- `read_file("/opt/hermes/docker/SOUL.md")`:
+  důkaz, že soubor existuje a agent ho umí otevřít
+- aktivní runtime persona:
+  to, co Hermes načetl při skládání promptu z `HERMES_HOME/SOUL.md`
+
+Pokud agent začne tvrdit, že "momentálně používá šablonu z `/opt/hermes/docker/SOUL.md`", ber to spíš jako jeho interpretaci výsledků file search než jako spolehlivý důkaz precedence.
+
+### SOUL.md debugging checklist
+
+1. Ověř `HERMES_HOME`:
+
+```bash
+docker exec hermes sh -lc 'echo "$HERMES_HOME"'
+```
+
+V tomhle stacku má být:
+
+```text
+/opt/data
+```
+
+2. Ověř, že existuje a má obsah správný soubor:
+
+```bash
+docker exec hermes sh -lc 'ls -l /opt/data/SOUL.md && sed -n "1,80p" /opt/data/SOUL.md'
+```
+
+3. Ověř, že fallback soubor v image je jiný:
+
+```bash
+docker exec hermes sh -lc 'sed -n "1,80p" /opt/hermes/docker/SOUL.md'
+```
+
+4. Po změně persony preferuj novou session. Když chceš čistý stav, udělej restart:
+
+```bash
+docker compose restart hermes
+```
+
+5. Ověř chování kontrolní otázkou, která dává smysl jen pro tvoji vlastní personu v `/opt/data/SOUL.md`.
+
+Poznámka:
+
+- pokud agentovi explicitně řekneš, aby používal `SOUL.md` z `/opt/data`, může se pak začít chovat správně i v rámci běžící session
+- to ale neznamená, že precedence byla špatně; jen jsi mu v konverzaci dal dodatečný steering
+- pro čisté ověření precedence je lepší nová session nebo restart + kontrolní prompt
+
 ## Jak přidávat skills
 
 Lokální skills patří do:
