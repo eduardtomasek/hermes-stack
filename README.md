@@ -363,11 +363,50 @@ Důležité:
 
 Bezpečný pattern:
 
-1. Hermes nech publikovaný jen na `127.0.0.1:8642`
-2. před něj dej reverse proxy s TLS
-3. v `Hermes Desktop` nastav:
+1. před Hermes dej reverse proxy s TLS
+2. v `Hermes Desktop` nastav:
    - Base URL: `https://hermes.tvoje-domena.cz`
    - API key: hodnota `API_SERVER_KEY`
+
+Pak zvol jednu z těchto topologií:
+
+### Nginx na stejném stroji jako Hermes
+
+Publikuj Hermes jen lokálně:
+
+```yaml
+ports:
+  - "127.0.0.1:8642:8642"
+```
+
+Reverse proxy pak míří na:
+
+```text
+127.0.0.1:8642
+```
+
+### Nginx na jiném stroji ve stejné LAN
+
+V tom případě nestačí, že aplikace uvnitř kontejneru poslouchá na `0.0.0.0`. Musíš port `8642` publikovat i z Docker hostu do LAN, například:
+
+```yaml
+ports:
+  - "8642:8642"
+```
+
+nebo explicitně:
+
+```yaml
+ports:
+  - "192.0.2.10:8642:8642"
+```
+
+Reverse proxy pak musí mířit na LAN IP stroje s Hermes, například `http://192.0.2.10:8642`.
+
+Doporučení:
+
+- port `8420` nech jen na `127.0.0.1`, je to interní health endpoint memory gateway
+- firewallově omez `8642` jen na IP stroje s reverse proxy, neotvírej ho do internetu
 
 ### Minimal Caddy example
 
@@ -392,6 +431,48 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### Minimal Nginx example for separate reverse proxy host
+
+```nginx
+server {
+    listen 80;
+    server_name hermes.example.com;
+
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name hermes.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+
+    client_max_body_size 50m;
+
+    location / {
+        proxy_pass http://192.0.2.10:8642;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_buffering off;
+        proxy_cache off;
+
+        proxy_read_timeout 3600;
+        proxy_send_timeout 3600;
+
+        chunked_transfer_encoding off;
     }
 }
 ```
