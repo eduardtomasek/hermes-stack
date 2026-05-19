@@ -361,6 +361,13 @@ Důležité:
 
 ## Přístup zvenku přes Hermes Desktop
 
+Důležité omezení:
+
+- při připojení `hermes-desktop` na vzdálený Hermes přes API zatím nefunguje většina funkcionality stejně jako v lokálním režimu
+- typický symptom je hláška `Connected to remote Hermes`
+- například skills v remote režimu zatím nejsou dostupné, protože tato data žijí na serveru a přes API ještě nejsou přístupná
+- prakticky tedy počítej s tím, že remote přístup přes `Hermes Desktop` je zatím vhodný hlavně pro základní chat/API use case, ne pro plnou lokální zkušenost
+
 Bezpečný pattern:
 
 1. před Hermes dej reverse proxy s TLS
